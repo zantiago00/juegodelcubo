@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #eaeaea;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #gameContainer {
+            width: 1200px;
+            height: 700px;
+            position: relative;
+            background: white;
+            border: 6px solid black;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        #player {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border: 4px solid black;
+            position: absolute;
+            left: 100px;
+            bottom: 0;
+            box-sizing: border-box;
+            transition: transform 0.1s ease-out;
+        }
+        #player.jumping {
+            transform: scale(1.1);
+        }
+        .obstacle {
+            width: 50px;
+            height: 50px;
+            background: red;
+            position: absolute;
+            bottom: 0;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 20px;
+            border: 2px solid black;
+            font-family: Arial;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 2;
+        }
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial;
+            z-index: 10;
+        }
+        .screen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        .screen button {
+            padding: 15px 30px;
+            font-size: 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .screen input {
+            font-size: 20px;
+            padding: 10px;
+            margin-top: 10px;
+            border: 2px solid black;
+            border-radius: 5px;
+        }
+        #ranking {
+            margin-top: 20px;
+            font-size: 18px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #ranking table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #ranking th, #ranking td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+        }
+        #ranking th {
+            background-color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="player"></div>
+        <div id="score">0.0s</div>
+        <div id="startScreen" class="screen">
+            <h1>Cuadrado en Fuga</h1>
+            <input id="playerName" type="text" placeholder="Ingresa tu nombre">
+            <button onclick="startGame()">Iniciar Juego</button>
+        </div>
+        <div id="endScreen" class="screen" style="display:none">
+            <h1>¡Has Perdido!</h1>
+            <p id="finalScore"></p>
+            <div id="ranking"></div>
+            <button onclick="location.reload()">Jugar de Nuevo</button>
+        </div>
+    </div>
+
+    <script>
+        const player = document.getElementById('player');
+        const container = document.getElementById('gameContainer');
+        const scoreEl = document.getElementById('score');
+        const startScreen = document.getElementById('startScreen');
+        const endScreen = document.getElementById('endScreen');
+        const finalScore = document.getElementById('finalScore');
+        const rankingDiv = document.getElementById('ranking');
+        const playerNameInput = document.getElementById('playerName');
+
+        let jumpForce = 0;
+        let isJumping = false;
+        let velocityY = 0;
+        let gravity = 0.8;
+        let jumpStrength = 15;
+        let groundY = 0;
+        let score = 0;
+        let gameRunning = false;
+        let playerName = "";
+
+        let obstacles = [];
+        let obstacleSpeed = 5;
+        let obstacleInterval;
+
+        function jump() {
+            if (!isJumping) {
+                isJumping = true;
+                velocityY = jumpStrength;
+                player.classList.add('jumping');
+                setTimeout(() => player.classList.remove('jumping'), 150);
+            }
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.code === 'Space') jump();
+        });
+
+        document.addEventListener('click', jump);
+
+        function startGame() {
+            playerName = playerNameInput.value.trim() || "Jugador Anónimo";
+            startScreen.style.display = 'none';
+            gameRunning = true;
+            obstacleInterval = setInterval(() => {
+                if (gameRunning) spawnObstacle();
+            }, 1500);
+            updateGame();
+        }
+
+        function spawnObstacle() {
+            const obs = document.createElement('div');
+            obs.classList.add('obstacle');
+            obs.style.left = container.offsetWidth + 'px';
+            container.appendChild(obs);
+            obstacles.push(obs);
+        }
+
+        function updateGame() {
+            if (!gameRunning) return;
+
+            velocityY -= gravity;
+            let newBottom = parseInt(player.style.bottom) || 0;
+            newBottom += velocityY;
+
+            if (newBottom <= groundY) {
+                newBottom = groundY;
+                velocityY = 0;
+                isJumping = false;
+            }
+
+            player.style.bottom = newBottom + 'px';
+
+            obstacles.forEach((obs, index) => {
+                let posX = parseInt(obs.style.left);
+                posX -= obstacleSpeed;
+                obs.style.left = posX + 'px';
+
+                const playerRect = player.getBoundingClientRect();
+                const obsRect = obs.getBoundingClientRect();
+
+                if (
+                    playerRect.left < obsRect.right &&
+                    playerRect.right > obsRect.left &&
+                    playerRect.top < obsRect.bottom &&
+                    playerRect.bottom > obsRect.top
+                ) {
+                    gameOver();
+                }
+
+                if (posX < -60) {
+                    obs.remove();
+                    obstacles.splice(index, 1);
+                }
+            });
+
+            score += 1/60;
+            scoreEl.textContent = score.toFixed(1) + 's';
+
+            requestAnimationFrame(updateGame);
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(obstacleInterval);
+            finalScore.textContent = playerName + ', tu tiempo sobrevivido fue: ' + score.toFixed(1) + ' segundos';
+            endScreen.style.display = 'flex';
+
+            fetch("https://script.google.com/macros/s/AKfycbyzuDQVGN6vLCaYMMRejFuuVP4LyJ4aMN5igGqCX5oh7v3ppDh7auhDLuDcyJ0XA068/exec", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nombre: playerName, puntaje: score.toFixed(1) })
+            }).then(res => res.text()).then(console.log);
+
+            fetch("https://script.google.com/macros/s/AKfycbyzuDQVGN6vLCaYMMRejFuuVP4LyJ4aMN5igGqCX5oh7v3ppDh7auhDLuDcyJ0XA068/exec")
+                .then(res => res.json())
+                .then(data => {
+                    const top = data.sort((a, b) => parseFloat(b.puntaje) - parseFloat(a.puntaje)).slice(0, 20);
+                    let table = '<h2>Ranking Top 20</h2><table><tr><th>#</th><th>Nombre</th><th>Puntaje</th></tr>';
+                    top.forEach((r, i) => {
+                        table += `<tr><td>${i+1}</td><td>${r.nombre}</td><td>${r.puntaje}s</td></tr>`;
+                    });
+                    table += '</table>';
+                    rankingDiv.innerHTML = table;
+                });
+        }
+    </script>
+</body>
+</html>
